@@ -1,0 +1,62 @@
+function uploadFaxPDFtoDrive() {
+  var folderId = ['your google drive folderid'];
+  var folder = DriveApp.getFolderById(folderId);
+  var searchCondition = 'is:unread'; 
+  
+//Scanメールの抽出条件
+  var threads = GmailApp.search('is:unread subject:[title]', 0, 500);
+  
+//対象のメールが存在しない場合は処理を終了
+  if(threads.length == 0)
+  {
+    console.log("新着メールなし");
+    return;
+  }
+    
+//Googleドライブに添付ファイルをアップロード
+  try
+  {
+    threads.forEach(function(thread){
+      var messages = GmailApp.getMessagesForThread(thread);
+
+      for(var i = 0; i < messages.length; i++) {
+      //スレッドに既読メールが含まれる場合は処理をスキップ
+        if(messages[i].isUnread())
+        {
+          var attachments　=　messages[i].getAttachments();
+          for(var j = 0; j < attachments.length; j++){
+            folder.createFile(attachments[j]);
+          }
+        }        
+      }
+      //アップロード済みのスレッドを既読にする
+      thread.markRead();
+    });
+    
+    //Slackへ通知
+    var botName = 'SlackBot';
+    var botIcon = ':dog2'; 
+    var slackWebhookURL = ['slack webhook url'];
+    var slackMessage = 'PDFが届きました！\n' + 'https://drive.google.com/drive/folders/' + folderId;
+      
+    var jsonData =
+        {
+          "username" : botName,
+          "icon_emoji" : botIcon,
+          "text" : slackMessage
+        };
+    var payload = JSON.stringify(jsonData);
+    
+    var options =
+        {
+          "method" : "post",
+          "contentType" : "application/json",
+          "payload" : payload
+        };
+    
+    UrlFetchApp.fetch(slackWebhookURL, options);
+    
+  }catch(e){
+    console.log(e);
+  }
+}
