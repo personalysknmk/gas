@@ -1,0 +1,172 @@
+// スプレッドシートの行列情報
+var StartRow = 1;         // 開始行
+var MenCol = 1;          // メンション列
+var NameCol = 2;          // 名前列
+var BirthdayCol = 3;      // 誕生日列
+
+function main() {
+  // 今日の日付を取得
+  var nowDate = new Date();
+  
+  // 今日の曜日を取得
+  var todayDayOfWeek = nowDate.getDay();
+
+  // 土曜、日曜は投稿しない
+  if (isSatOrSun(todayDayOfWeek) === true) {
+    return;
+  }
+  
+  // 誕生日リストのスプレッドシートを参照 
+  // xxxx の部分に、スプレッドシートのURL 「https://docs.google.com/spreadsheets/d/3M5PBijov0DsQ5p-txfsMULNvzbDmLCocr6MGfRee4ck」 ←　3M5PB 以降を入力します。
+  var spreadsheet = SpreadsheetApp.openById('xxxxxxxxxxxxxxx');
+  
+  // シートにアクセス
+  var sheet = spreadsheet.getSheetByName('シート名');
+  
+  // データ取得
+  var data = sheet.getDataRange().getValues();
+  
+  for (var i = 0; i < data.length; i++) {
+    if (i < StartRow) {
+      continue;
+    }
+
+    // メンションを取得
+    var men = data[i][MenCol];
+
+    // 名前を取得
+    var name = data[i][NameCol];
+    
+    // 誕生日を取得
+    var birthday = data[i][BirthdayCol];
+    
+    // 誕生日を日付でパースし、日付が正しく入力されているかチェック
+    var isDate = !isNaN(Date.parse(birthday));
+
+    // 誕生日入力済みであることをチェック
+    if (isDate === true) {
+      // 投稿処理
+      postProc(men, name, birthday, nowDate); 
+    }
+  }
+}
+
+function isSatOrSun(todayDayOfWeek)
+{
+  // 土曜、日曜は投稿しない
+  // 土曜、日曜稼働している方ならここは削除してもOK
+  if ((todayDayOfWeek === 0) || (todayDayOfWeek === 6)) {
+    return true;
+  }
+  
+  return false;
+}
+
+function postProc(men, name, birthday, nowDate)
+{
+  var todayDayOfWeek = nowDate.getDay();
+  var message = "";
+
+  // 金曜日
+  if (todayDayOfWeek === 5){
+    
+    // 1日後(土曜日)
+    var dtSat = new Date();
+    dtSat.setDate(dtSat.getDate() + 1);
+    
+    // 2日後(日曜日)
+    var dtSun = new Date();
+    dtSun.setDate(dtSun.getDate() + 2);
+    
+    if (isSend(dtSat, birthday) === true) {
+      message = createMessage(men, name, "明日");
+    }
+    else if (isSend(dtSun, birthday) === true) {
+      message = createMessage(men, name, "あさって");
+    }
+    else if (isSend(nowDate, birthday) === true) {
+      message = createMessage(men, name, "今日");
+    }
+  }
+  else
+  {
+    if (isSend(nowDate, birthday) === true) {
+      message = createMessage(men, name, "今日");
+    }      
+  }
+
+  // メッセージが生成されていれば、Slackに投稿  
+  if (message != "") {
+    // おめでとう画像を取得
+    var fileId = getRandomImageID();
+        
+    // Slackへ投稿
+    postSlack(message, fileId);
+  }
+}
+
+function isSend(compareDate, birthdayDate)
+{
+  // 月、日が一致するかをチェックする
+  if ((compareDate.getMonth() === birthdayDate.getMonth()) && 
+    (compareDate.getDate() === birthdayDate.getDate()))
+    {
+      return true;
+    }
+  
+  return false;
+}
+
+function getRandomImageID() {
+  var imageFileArray = [
+    "1m5pMOsRkPpl9KoFUUtNnYgV7x6wbsCk2", // 画像：birthday1
+    "10C2fV8YpRGeus5z5dhK5gtFnpKMPgTxw", // 画像：birthday2
+    "1yh3EcwSnHFtQhPn4xY3s9SM5etRrq9OG", // 画像：birthday3
+    "1K9ngytn9BlTHmz2D5imjvOFolrp4tgpv", // 画像：birthday4
+    "1oGF8TmIl-HOQwVBmKOalfI3Sple7hVSD", // 画像：birthday5
+    "1DNQO4f9Y9YdsDnnstvP62GjlN6cBviKT", // 画像：birthday6
+    "1vzWVDx3wMvi4aSXcPhsAEzJfgMur68VM", // 画像：birthday7
+    "1MsPstWVjvJPl8SH01mCG1EG5k8bllTMK", // 画像：birthday8
+  ];
+
+  // 0～7の値を取得
+  var randomValue = Math.floor( Math.random() * 8 );
+  
+  return imageFileArray[randomValue];
+}
+
+//------------------------------
+// メッセージ作成
+//------------------------------
+function createMessage(men, name, dayMessage)
+{
+  var message = dayMessage + 'は, 　<@' + men  + '>　こと　'+ name + '　さんの誕生日です :birthday:' + '\r\n' + 
+    'おめでとうございます :tada: :tada: :tada:' + '\r\n' +
+    'ぜひプレゼントのクーポンを使って幸せな時間を過ごしてくださいね！'
+    
+  return message;  
+}
+
+function postSlack(text, fileId) {
+  
+  var payload = {
+    text: text,
+    attachments: [
+        {
+            color: "#2eb886",
+            pretext: "",
+            image_url: "http://drive.google.com/uc?export=download&id=" + fileId,
+        }      
+      ]
+  };
+ 
+  // Incoming WebhooksのURL
+  var url = "https://hooks.slack.com/services/hogehogehogehoge";
+  
+  var options = {
+    "method" : "POST",
+    "headers": {"Content-type": "application/json"},
+    "payload": JSON.stringify(payload)
+  };
+  UrlFetchApp.fetch(url, options); 
+}
